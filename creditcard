@@ -1,0 +1,76 @@
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from imblearn.over_sampling import SMOTE
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Step 1: Load the dataset
+df = pd.read_csv('/content/creditcard.csv')
+
+# Step 2: Handle missing values by dropping rows with missing data
+df.dropna(inplace=True)
+
+# Step 3: Create a new feature based on transaction amount (Amount)
+# Classify transactions into three categories: Small, Medium, Large
+amount_percentiles = np.percentile(df['Amount'], [33, 66])
+df['Transaction_Size'] = pd.cut(df['Amount'], 
+                                bins=[-np.inf, amount_percentiles[0], amount_percentiles[1], np.inf], 
+                                labels=['Small', 'Medium', 'Large'])
+
+# Step 4: Separate features (X) and target (y)
+X = df.drop(columns=['Class'])  # Features: All columns except the target 'Class'
+y = df['Class']  # Target: 'Class' column indicating fraud or not
+
+# Step 5: Scale the numerical features
+# Apply StandardScaler only to numerical features (excluding the categorical 'Transaction_Size' column)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X.select_dtypes(include=[np.number]))
+
+# Step 6: Handle class imbalance using SMOTE (Synthetic Minority Oversampling Technique)
+smote = SMOTE(random_state=42)
+X_resampled, y_resampled = smote.fit_resample(X_scaled, y)
+
+# Step 7: Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.3, random_state=42)
+
+# Step 8: Train a Logistic Regression model
+model = LogisticRegression(random_state=42, max_iter=1000)
+model.fit(X_train, y_train)
+
+# Step 9: Make predictions on the test set
+y_pred = model.predict(X_test)
+
+# Step 10: Evaluate the model using various metrics
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+
+# Print the evaluation metrics
+print(f"Accuracy: {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
+
+# Step 11: Plot the confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(7, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Not Fraud', 'Fraud'], yticklabels=['Not Fraud', 'Fraud'])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
+plt.show()
+
+# Step 12: Optionally, perform cross-validation to check model stability
+from sklearn.model_selection import cross_val_score
+cv_scores = cross_val_score(model, X_resampled, y_resampled, cv=5)
+
+# Print cross-validation results
+print(f"Cross-validation accuracy scores: {cv_scores}")
+print(f"Mean cross-validation accuracy: {cv_scores.mean():.4f}")
+
